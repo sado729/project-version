@@ -28,7 +28,7 @@ final class GitPullCommand extends Command
      */
     public function handle(): void
     {
-        $output = shell_exec('git pull ufl master');
+        $output = shell_exec('git pull '.config('project-version.git_repository_name').' master');
 
         event(new GitPullEvent());
 

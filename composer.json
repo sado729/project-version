@@ -1,0 +1,25 @@
+{
+    "name": "sado729/project-version",
+    "description": "Laravel Project Version Automatically Increase",
+    "autoload": {
+        "psr-4": {
+            "Sado729\\ProjectVersion\\": "src/"
+        }
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Sadiq Məmmədov",
+            "email": "sadiqmemmedov93@mail.ru"
+        }
+    ],
+    "minimum-stability": "dev",
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Sado729\\ProjectVersion\\ProjectVersionServiceProvider"
+            ]
+        }
+    },
+    "require": {}
+}

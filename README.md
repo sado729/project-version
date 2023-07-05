@@ -7,6 +7,11 @@ The package automatically updates the version of your project based on the chang
 ```sh
 composer require sado729/project-version
 ```
+After
+```sh
+php artisan vendor:publish --provider="Sado729\ProjectVersion\ProjectVersionServiceProvider"
+```
+to publish the Assets and Config.
 After that, you need to edit the configuration file `(config/project-version.php)` according to your project. In the git_repository_name section, you need to enter the name of your project's github repository
 
 ---

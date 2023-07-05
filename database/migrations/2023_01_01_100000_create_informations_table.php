@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('informations', function (Blueprint $table) {
             $table->id();
-            $table->string('version','10');
+            $table->string('version','15')->default('1.0.0');
         });
     }
  

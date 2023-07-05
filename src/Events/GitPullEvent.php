@@ -34,5 +34,7 @@ class GitPullEvent
         $patch += $changedFilesCount;
 
         $information->update(['version' => $major.'.'.$minor.'.'.$patch]);
+
+        return $information;
     }
 }

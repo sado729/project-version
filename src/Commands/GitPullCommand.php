@@ -28,10 +28,10 @@ final class GitPullCommand extends Command
      */
     public function handle(): void
     {
-        $output = shell_exec('git pull '.config('project-version.git_repository_name').' master');
+        $output = shell_exec('git pull '.config('project-version.git_repository_name').' '.config('project-version.git_branch_name'));
 
-        event(new GitPullEvent());
-
+        $information = event(new GitPullEvent());
+dd($information);
         $this->info($output);
         $this->info('Git pull operation completed successfully.');
     }

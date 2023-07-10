@@ -31,8 +31,8 @@ final class GitPullCommand extends Command
         $output = shell_exec('git pull '.config('project-version.git_repository_name').' '.config('project-version.git_branch_name'));
 
         $information = event(new GitPullEvent());
-dd($information);
+
         $this->info($output);
-        $this->info('Git pull operation completed successfully.');
+        $this->info('Git pull operation completed successfully. New version : '.$information['version']);
     }
 }

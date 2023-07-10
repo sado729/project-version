@@ -23,7 +23,6 @@ class GitPullEvent
         $changedFilesCount = $changedFiles !== null ? count(explode("\n", trim($changedFiles))) : 0;
         $newFilesCount = $newFiles !== null ? count(explode("\n", trim($newFiles))) : 0;
 
-
         $information = Information::first();
         list($major, $minor, $patch) = explode('.', $information['version']);
 
@@ -34,7 +33,5 @@ class GitPullEvent
         $patch += $changedFilesCount;
 
         $information->update(['version' => $major.'.'.$minor.'.'.$patch]);
-
-        return $information;
     }
 }

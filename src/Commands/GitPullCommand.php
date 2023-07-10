@@ -3,6 +3,7 @@
 namespace Sado729\ProjectVersion\Commands;
 
 use Sado729\ProjectVersion\Events\GitPullEvent;
+use Sado729\ProjectVersion\Models\Information;
 use Illuminate\Console\Command;
 
 final class GitPullCommand extends Command
@@ -30,9 +31,10 @@ final class GitPullCommand extends Command
     {
         $output = shell_exec('git pull '.config('project-version.git_repository_name').' '.config('project-version.git_branch_name'));
 
-        $information = event(new GitPullEvent());
-dd($information);
+        event(new GitPullEvent());
+        $information = Information::first();
+
         $this->info($output);
-        $this->info('Git pull operation completed successfully.');
+        $this->info('Git pull operation completed successfully. New version: '.$information['version']);
     }
 }

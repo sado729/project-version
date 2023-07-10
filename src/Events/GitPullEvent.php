@@ -23,14 +23,20 @@ class GitPullEvent
         $changedFilesCount = $changedFiles !== null ? count(explode("\n", trim($changedFiles))) : 0;
         $newFilesCount = $newFiles !== null ? count(explode("\n", trim($newFiles))) : 0;
 
-
         $information = Information::first();
         list($major, $minor, $patch) = explode('.', $information['version']);
 
-        if ($newFilesCount > 0) {
-            $minor += $newFilesCount;
-            $patch = 0;
+        if ($newFilesCount){
+            $pattern = '/app\/[^\/]+$/';
+
+            preg_match_all($pattern, $newFiles, $matches);
+            $moduleCount = count($matches[0]);
+            if ($moduleCount > 0) {
+                $minor += $moduleCount;
+                $patch = 0;
+            }
         }
+
         $patch += $changedFilesCount;
 
         $information->update(['version' => $major.'.'.$minor.'.'.$patch]);

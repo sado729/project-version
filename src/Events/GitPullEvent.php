@@ -24,7 +24,7 @@ class GitPullEvent
         $newFilesCount = $newFiles !== null ? count(explode("\n", trim($newFiles))) : 0;
 
         $information = Information::first();
-        list($major, $minor, $patch) = explode('.', $information['version']);
+        list($major, $minor, $patch) = $information['version'] ? explode('.', $information['version']) : explode('.','1.0.0');
 
         if ($newFilesCount){
             $pattern = '/app\/[^\/]+$/';

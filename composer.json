@@ -21,5 +21,13 @@
             ]
         }
     },
-    "require": {}
+    "require": {
+        "php": "^8.0",
+        "illuminate/console": "^9.0|^10.0|^11.0",
+        "illuminate/database": "^9.0|^10.0|^11.0",
+        "illuminate/events": "^9.0|^10.0|^11.0",
+        "illuminate/http": "^9.0|^10.0|^11.0",
+        "illuminate/routing": "^9.0|^10.0|^11.0",
+        "illuminate/support": "^9.0|^10.0|^11.0"
+    }
 }

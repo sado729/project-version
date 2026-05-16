@@ -1,38 +1,94 @@
 ## Project Version
 
-The package automatically updates the version of your project based on the changes you make on git. Versioning is marked as `"major.minor.patch"`. The patch value increases with each file change you make. If a new file is added, the minor part is incremented and the patch is reset.
+Laravel paketi layihənizin versiyasını **avtomatik** olaraq git aktivliyinə əsasən artırır. Versiya `"major.minor.patch"` formatındadır:
+
+- **patch** — hər dəyişdirilən fayl üçün +1
+- **minor** — `app/` qovluğuna əlavə olunan hər yeni modul (birbaşa alt-qovluq) üçün +1, patch sıfırlanır
+- **major** — əl ilə idarə olunur
+
+Versiya `informations` cədvəlindəki `version` sütununda saxlanılır.
 
 ---
-## Installation
+## Quraşdırma
 ```sh
 composer require sado729/project-version
 ```
-After
+
+Konfiq və migration-ları çap edin:
 ```sh
 php artisan vendor:publish --provider="Sado729\ProjectVersion\ProjectVersionServiceProvider"
-```
-to publish the Assets and Config.
-After that, you need to edit the configuration file `(config/project-version.php)` according to your project. In the git_repository_name section, you need to enter the name of your project's github repository
-
----
-## Usage
-To use the package, you must first have an `informations` table with a `version` column. If not, you can create it with the following command:
-```sh
 php artisan migrate
 ```
-Everything is ready! You should run the following command instead of issuing the git pull command. At this time, the git pull command is automatically executed and the version is changed:
+
+`config/project-version.php` faylındakı `git_repository_name` və `git_branch_name` dəyərlərini öz layihənizə uyğun redaktə edin (bu dəyərlər yalnız `git:pull` komandası üçündür).
+
+---
+## Avtomatik versiyalama (tövsiyə olunan üsul)
+
+Git hook-larını bir dəfə quraşdırın:
+```sh
+php artisan version:install-hooks
+```
+
+Bu komanda `.git/hooks/post-commit` və `.git/hooks/post-merge` skriptlərini yaradır. Bundan sonra:
+
+- Hər `git commit`-dən sonra → versiya son commit-in diff-inə görə yenilənir
+- Hər `git pull` / `git merge`-dən sonra → versiya `ORIG_HEAD..HEAD` diapazonuna görə yenilənir
+
+Heç bir əl ilə komanda yazmağa ehtiyac yoxdur. Mövcud hook-ları üzərinə yazmaq üçün:
+```sh
+php artisan version:install-hooks --force
+```
+
+> Qeyd: `.git/hooks/` qovluğu versiya nəzarətində saxlanılmır, ona görə hər klon-dan sonra hooks bir dəfə quraşdırılmalıdır.
+
+---
+## Əl ilə versiyalama komandaları
+
+İstənilən vaxt versiyanı manual hesablamaq üçün:
+
+```sh
+# Working tree (commit olunmamış + untracked fayllar)
+php artisan version:bump --working-tree
+
+# İki ref arası diff
+php artisan version:bump --from=HEAD~1 --to=HEAD
+php artisan version:bump --from=ORIG_HEAD --to=HEAD
+```
+
+`git pull` ilə birgə işləmə (köhnə davranış):
 ```sh
 php artisan git:pull
 ```
-![image](https://github.com/sado729/project-version/assets/22997209/7afd3521-1416-4ae9-9e05-eeffa523b788)
+Bu komanda `git pull` icra edir, sonra pull-dan əvvəlki/sonrakı HEAD-ləri müqayisə edərək versiyanı yeniləyir və `GitPullEvent` yayır.
 
 ---
+## Event-ə qulaq asma
 
+`Sado729\ProjectVersion\Events\GitPullEvent` event-i yayılır və yeni versiyanı payload kimi daşıyır:
+
+```php
+use Sado729\ProjectVersion\Events\GitPullEvent;
+
+Event::listen(GitPullEvent::class, function (GitPullEvent $event) {
+    logger()->info("Yeni versiya: {$event->version}");
+});
+```
+
+---
+## Middleware
+
+Cədvəlin mövcudluğunu yoxlayan middleware:
+```php
+Route::middleware('project-version')->group(function () {
+    // ...
+});
+```
+
+---
 ## License
 The MIT License (MIT). Please see [License File](license.md) for more information.
 
 ---
-
 ## More from me
-
-- Visit my website [MrSadiq.info](https://mrsadiq.info)
+- [MrSadiq.info](https://mrsadiq.info)

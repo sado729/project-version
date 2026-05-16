@@ -2,70 +2,88 @@
 
 Laravel paketi layihənizin versiyasını **avtomatik** olaraq git aktivliyinə əsasən artırır. Versiya `"major.minor.patch"` formatındadır:
 
-- **patch** — hər dəyişdirilən fayl üçün +1
-- **minor** — `app/` qovluğuna əlavə olunan hər yeni modul (birbaşa alt-qovluq) üçün +1, patch sıfırlanır
-- **major** — əl ilə idarə olunur
+- **patch** — hər dəyişdirilən fayl üçün +1 (ignor edilməyənlər arasından)
+- **minor** — `module_paths` konfiqurasiyasındakı qovluqlara əlavə olunan hər yeni modul üçün +1, patch sıfırlanır
+- **major** — `version:release major` komandası ilə artırılır
 
-Versiya `informations` cədvəlindəki `version` sütununda saxlanılır.
+Versiya `informations` cədvəlində saxlanılır, tarixçə isə `version_histories` cədvəlində.
 
 ---
 ## Quraşdırma
 ```sh
 composer require sado729/project-version
-```
-
-Konfiq və migration-ları çap edin:
-```sh
 php artisan vendor:publish --provider="Sado729\ProjectVersion\ProjectVersionServiceProvider"
 php artisan migrate
 ```
 
-`config/project-version.php` faylındakı `git_repository_name` və `git_branch_name` dəyərlərini öz layihənizə uyğun redaktə edin (bu dəyərlər yalnız `git:pull` komandası üçündür).
+`config/project-version.php`-ni öz layihənizə uyğunlaşdırın (ignor paternləri, modul yolları, patch overflow, və s.).
 
 ---
-## Avtomatik versiyalama (tövsiyə olunan üsul)
+## Avtomatik versiyalama (tövsiyə olunan)
 
-Git hook-larını bir dəfə quraşdırın:
 ```sh
 php artisan version:install-hooks
 ```
 
-Bu komanda `.git/hooks/post-commit` və `.git/hooks/post-merge` skriptlərini yaradır. Bundan sonra:
+Bu komanda `.git/hooks/post-commit` və `post-merge` skriptlərini yazır. Mövcud hook-larla **toqquşmur** — özünə aid bloku marker arasında əlavə edir, başqa məzmunu pozmur. Yenidən çağırılsa, mövcud bloku yeniləyir (idempotent).
 
-- Hər `git commit`-dən sonra → versiya son commit-in diff-inə görə yenilənir
-- Hər `git pull` / `git merge`-dən sonra → versiya `ORIG_HEAD..HEAD` diapazonuna görə yenilənir
+Bundan sonra:
+- `git commit` → versiya son commit-in diff-inə görə yenilənir
+- `git pull` / `git merge` → versiya `ORIG_HEAD..HEAD` diapazonuna görə yenilənir
 
-Heç bir əl ilə komanda yazmağa ehtiyac yoxdur. Mövcud hook-ları üzərinə yazmaq üçün:
+Hook-u silmək üçün:
 ```sh
-php artisan version:install-hooks --force
+php artisan version:install-hooks --uninstall
 ```
 
-> Qeyd: `.git/hooks/` qovluğu versiya nəzarətində saxlanılmır, ona görə hər klon-dan sonra hooks bir dəfə quraşdırılmalıdır.
+> `.git/hooks/` versiya nəzarətində saxlanılmadığından hər klondan sonra bir dəfə quraşdırılmalıdır.
 
 ---
-## Əl ilə versiyalama komandaları
-
-İstənilən vaxt versiyanı manual hesablamaq üçün:
+## Əl ilə komandalar
 
 ```sh
-# Working tree (commit olunmamış + untracked fayllar)
+# İki ref arası diff (custom range)
+php artisan version:bump --from=HEAD~1 --to=HEAD
+
+# Working tree (uncommitted + untracked)
 php artisan version:bump --working-tree
 
-# İki ref arası diff
-php artisan version:bump --from=HEAD~1 --to=HEAD
-php artisan version:bump --from=ORIG_HEAD --to=HEAD
-```
+# Manual release
+php artisan version:release patch
+php artisan version:release minor
+php artisan version:release major
 
-`git pull` ilə birgə işləmə (köhnə davranış):
-```sh
+# Köhnə davranış: git pull + bump
 php artisan git:pull
 ```
-Bu komanda `git pull` icra edir, sonra pull-dan əvvəlki/sonrakı HEAD-ləri müqayisə edərək versiyanı yeniləyir və `GitPullEvent` yayır.
 
 ---
-## Event-ə qulaq asma
+## View-da istifadə
 
-`Sado729\ProjectVersion\Events\GitPullEvent` event-i yayılır və yeni versiyanı payload kimi daşıyır:
+```blade
+<footer>v@projectVersion</footer>
+```
+
+Yaxud helper:
+```php
+echo project_version(); // "1.2.7"
+```
+
+---
+## Konfiqurasiya
+
+`config/project-version.php`:
+
+| Açar | Təyinat |
+|---|---|
+| `ignore_patterns` | Versiyaya təsir etməyən fayllar (glob, `fnmatch` ilə müqayisə). Default: `*.md`, lock fayllar, `vendor/*`, `node_modules/*`, `storage/*`, `tests/*`, və s. |
+| `module_paths` | "Yeni modul" sayılan yollar. Default: `app/*`. |
+| `patch_rollover_threshold` | Patch bu rəqəmə çatanda minor-a roll over edir. Default: `null` (söndürülmüş). Məs. `100` → `1.0.847` əvəzinə `1.8.47`. |
+| `history_enabled` | `version_histories` cədvəlinə hər bump-da yazsın? Default: `true`. |
+| `git_repository_name`, `git_branch_name` | `git:pull` komandası üçün. |
+
+---
+## Event
 
 ```php
 use Sado729\ProjectVersion\Events\GitPullEvent;
@@ -78,16 +96,26 @@ Event::listen(GitPullEvent::class, function (GitPullEvent $event) {
 ---
 ## Middleware
 
-Cədvəlin mövcudluğunu yoxlayan middleware:
 ```php
-Route::middleware('project-version')->group(function () {
-    // ...
-});
+Route::middleware('project-version')->group(fn () => /* ... */);
+```
+
+---
+## CI/CD
+
+Local hook əvəzinə CI-də versiyalama üçün hazır nümunə: [`examples/github-actions-version-bump.yml`](examples/github-actions-version-bump.yml).
+
+---
+## Testlər
+
+```sh
+composer install
+vendor/bin/phpunit
 ```
 
 ---
 ## License
-The MIT License (MIT). Please see [License File](license.md) for more information.
+MIT — [License File](license.md)
 
 ---
 ## More from me

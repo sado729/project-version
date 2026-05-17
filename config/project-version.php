@@ -4,7 +4,7 @@ return [
     'middleware' => ['web', 'project-version'],
 
     'git_repository_name' => 'origin',
-    'git_branch_name' => 'master',
+    'git_branch_name' => 'main',
 
     /*
      * Files whose changes should NOT bump the version.

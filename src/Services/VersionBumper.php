@@ -27,7 +27,7 @@ class VersionBumper
             $minor += $newModuleCount;
             $patch = 0;
         } else {
-            $patch += count($changedFiles);
+            $patch += count(array_unique(array_merge($changedFiles, $newFiles)));
             [$minor, $patch] = $this->applyRollover($minor, $patch);
         }
 
@@ -61,7 +61,11 @@ class VersionBumper
 
     public function current(): string
     {
-        return $this->loadInformation()->version ?? '1.0.0';
+        try {
+            return Information::query()->find(1)?->version ?? '1.0.0';
+        } catch (\Throwable) {
+            return '1.0.0';
+        }
     }
 
     private function loadInformation(): Information
@@ -129,11 +133,6 @@ class VersionBumper
         $modules = [];
         foreach ($newFiles as $file) {
             foreach ($patterns as $pattern) {
-                if (fnmatch($pattern, $file, FNM_PATHNAME)) {
-                    $modules[$file] = true;
-                    break;
-                }
-
                 $parts = explode('/', $file);
                 while (count($parts) > 1) {
                     array_pop($parts);
@@ -162,6 +161,10 @@ class VersionBumper
 
     private function persist(Information $information, string $version): string
     {
+        if ($information->version === $version) {
+            return $version;
+        }
+
         $information->update(['version' => $version]);
 
         if (config('project-version.history_enabled', true)) {

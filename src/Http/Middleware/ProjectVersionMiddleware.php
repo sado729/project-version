@@ -7,10 +7,15 @@ use Illuminate\Support\Facades\Schema;
 
 class ProjectVersionMiddleware
 {
+    private static ?bool $tableExists = null;
+
     public function handle($request, Closure $next)
     {
-        if (!Schema::hasTable('informations')) {
-            throw new \Exception('ProjectVersion package is not configured: missing informations DB table');
+        if (self::$tableExists !== true) {
+            self::$tableExists = Schema::hasTable('informations');
+            if (! self::$tableExists) {
+                throw new \RuntimeException('ProjectVersion package is not configured: missing informations DB table');
+            }
         }
 
         return $next($request);

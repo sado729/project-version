@@ -12,11 +12,58 @@ class VersionBumperTest extends TestCase
 {
     use \Illuminate\Foundation\Testing\RefreshDatabase;
 
-    public function test_creates_initial_record_with_default_version(): void
+    public function test_current_returns_default_without_writing(): void
     {
         $bumper = new VersionBumper(new FakeGit([]));
         $this->assertSame('1.0.0', $bumper->current());
-        $this->assertSame(1, Information::count());
+        $this->assertSame(0, Information::count(), 'current() must be read-only');
+    }
+
+    public function test_current_returns_default_when_table_missing(): void
+    {
+        \Illuminate\Support\Facades\Schema::dropIfExists('informations');
+
+        $bumper = new VersionBumper(new FakeGit([]));
+        $this->assertSame('1.0.0', $bumper->current());
+    }
+
+    public function test_noop_bump_does_not_write_history(): void
+    {
+        config()->set('project-version.ignore_patterns', ['*.md']);
+
+        $git = new FakeGit([
+            'diff --name-only' => 'README.md',
+            'ls-files --others --exclude-standard' => '',
+            'rev-parse --short HEAD' => 'abc1234',
+        ]);
+
+        $bumper = new VersionBumper($git);
+        $this->assertSame('1.0.0', $bumper->bump());
+        $this->assertSame(0, VersionHistory::count(), 'no-op bump must not record history');
+    }
+
+    public function test_files_at_module_root_do_not_count_as_modules(): void
+    {
+        $git = new FakeGit([
+            'diff --name-only' => '',
+            'ls-files --others --exclude-standard' => "app/A.php\napp/B.php\napp/C.php",
+            'rev-parse --short HEAD' => 'abc1234',
+        ]);
+
+        $bumper = new VersionBumper($git);
+        $this->assertSame('1.0.3', $bumper->bump(), 'top-level files are not modules; they should bump patch only');
+    }
+
+    public function test_bump_with_ref_range_uses_diff_filter(): void
+    {
+        $git = new FakeGit([
+            'diff --name-only --diff-filter=ACMR HEAD~1..HEAD' => "src/A.php\nsrc/B.php",
+            'diff --name-only --diff-filter=A HEAD~1..HEAD' => '',
+            'rev-parse --short HEAD' => 'abc1234',
+        ]);
+
+        $bumper = new VersionBumper($git);
+        $this->assertSame('1.0.2', $bumper->bump('HEAD~1', 'HEAD'));
     }
 
     public function test_patch_increments_per_changed_file(): void

@@ -26,11 +26,10 @@ class VersionBumper
         if ($newModuleCount > 0) {
             $minor += $newModuleCount;
             $patch = 0;
+        } else {
+            $patch += count($changedFiles);
+            [$minor, $patch] = $this->applyRollover($minor, $patch);
         }
-
-        $patch += count($changedFiles);
-
-        [$minor, $patch] = $this->applyRollover($minor, $patch);
 
         return $this->persist($information, "{$major}.{$minor}.{$patch}");
     }

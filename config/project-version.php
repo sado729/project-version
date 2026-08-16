@@ -1,7 +1,11 @@
 <?php
 
 return [
-    'middleware' => ['web', 'project-version'],
+    /*
+     * Response header written by the 'project-version' middleware.
+     * Set to null to disable the header.
+     */
+    'version_header' => 'X-App-Version',
 
     'git_repository_name' => 'origin',
     'git_branch_name' => 'main',
@@ -9,7 +13,9 @@ return [
     /*
      * Files whose changes should NOT bump the version.
      * Each entry is a glob pattern matched against the file path
-     * relative to the project root (fnmatch with FNM_PATHNAME).
+     * relative to the project root. '*' also crosses directory
+     * separators, so 'vendor/*' covers 'vendor/a/b.php' and '*.md'
+     * covers 'docs/notes.md'.
      */
     'ignore_patterns' => [
         '*.md',

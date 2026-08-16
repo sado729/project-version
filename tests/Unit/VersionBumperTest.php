@@ -83,11 +83,51 @@ class VersionBumperTest extends TestCase
         $git = new FakeGit([
             'diff --name-only' => "src/Foo.php",
             'ls-files --others --exclude-standard' => "app/Billing/Service.php\napp/Billing/Model.php",
+            'ls-files -- app/Billing/' => '',
             'rev-parse --short HEAD' => 'abc1234',
         ]);
 
         $bumper = new VersionBumper($git);
         $this->assertSame('1.1.0', $bumper->bump());
+    }
+
+    public function test_new_file_in_existing_module_bumps_patch_only(): void
+    {
+        $git = new FakeGit([
+            'diff --name-only' => '',
+            'ls-files --others --exclude-standard' => 'app/Http/Controllers/NewController.php',
+            'ls-files -- app/Http/' => "app/Http/Kernel.php\napp/Http/Controllers/OldController.php",
+            'rev-parse --short HEAD' => 'abc1234',
+        ]);
+
+        $bumper = new VersionBumper($git);
+        $this->assertSame('1.0.1', $bumper->bump(), 'a file added to an existing module must not bump minor');
+    }
+
+    public function test_ref_range_new_module_checks_previous_tree(): void
+    {
+        $git = new FakeGit([
+            'diff --name-only --diff-filter=ACMR HEAD~1..HEAD' => 'app/Billing/Service.php',
+            'diff --name-only --diff-filter=A HEAD~1..HEAD' => 'app/Billing/Service.php',
+            'ls-tree --name-only HEAD~1 -- app/Billing' => '',
+            'rev-parse --short HEAD' => 'abc1234',
+        ]);
+
+        $bumper = new VersionBumper($git);
+        $this->assertSame('1.1.0', $bumper->bump('HEAD~1', 'HEAD'));
+    }
+
+    public function test_ref_range_existing_module_bumps_patch_only(): void
+    {
+        $git = new FakeGit([
+            'diff --name-only --diff-filter=ACMR HEAD~1..HEAD' => 'app/Http/Controllers/NewController.php',
+            'diff --name-only --diff-filter=A HEAD~1..HEAD' => 'app/Http/Controllers/NewController.php',
+            'ls-tree --name-only HEAD~1 -- app/Http' => 'app/Http',
+            'rev-parse --short HEAD' => 'abc1234',
+        ]);
+
+        $bumper = new VersionBumper($git);
+        $this->assertSame('1.0.1', $bumper->bump('HEAD~1', 'HEAD'));
     }
 
     public function test_ignored_files_do_not_bump_patch(): void
@@ -102,6 +142,20 @@ class VersionBumperTest extends TestCase
 
         $bumper = new VersionBumper($git);
         $this->assertSame('1.0.0', $bumper->bump());
+    }
+
+    public function test_ignore_patterns_cover_nested_paths(): void
+    {
+        config()->set('project-version.ignore_patterns', ['vendor/*', '*.md']);
+
+        $git = new FakeGit([
+            'diff --name-only' => "vendor/symfony/process/Process.php\ndocs/notes.md\nsrc/Real.php",
+            'ls-files --others --exclude-standard' => '',
+            'rev-parse --short HEAD' => 'abc1234',
+        ]);
+
+        $bumper = new VersionBumper($git);
+        $this->assertSame('1.0.1', $bumper->bump(), 'nested vendor files and nested markdown must be ignored');
     }
 
     public function test_release_increments_chosen_segment(): void

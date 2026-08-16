@@ -3,21 +3,19 @@
 namespace Sado729\ProjectVersion\Http\Middleware;
 
 use Closure;
-use Illuminate\Support\Facades\Schema;
+use Symfony\Component\HttpFoundation\Response;
 
 class ProjectVersionMiddleware
 {
-    private static ?bool $tableExists = null;
-
     public function handle($request, Closure $next)
     {
-        if (self::$tableExists !== true) {
-            self::$tableExists = Schema::hasTable('informations');
-            if (! self::$tableExists) {
-                throw new \RuntimeException('ProjectVersion package is not configured: missing informations DB table');
-            }
+        $response = $next($request);
+
+        $header = config('project-version.version_header', 'X-App-Version');
+        if ($header && $response instanceof Response) {
+            $response->headers->set($header, project_version());
         }
 
-        return $next($request);
+        return $response;
     }
 }

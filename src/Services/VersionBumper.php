@@ -2,6 +2,7 @@
 
 namespace Sado729\ProjectVersion\Services;
 
+use Illuminate\Support\Facades\DB;
 use Sado729\ProjectVersion\Models\Information;
 use Sado729\ProjectVersion\Models\VersionHistory;
 use Sado729\ProjectVersion\Support\Git;
@@ -19,44 +20,48 @@ class VersionBumper
         $changedFiles = $this->filterIgnored($changedFiles);
         $newFiles = $this->filterIgnored($newFiles);
 
-        $information = $this->loadInformation();
-        [$major, $minor, $patch] = $this->parseVersion($information->version);
+        $newModuleCount = $this->countNewModules(
+            $newFiles,
+            $fromRef !== null && $toRef !== null ? $fromRef : null
+        );
 
-        $newModuleCount = $this->countNewModules($newFiles);
-        if ($newModuleCount > 0) {
-            $minor += $newModuleCount;
-            $patch = 0;
-        } else {
-            $patch += count(array_unique(array_merge($changedFiles, $newFiles)));
-            [$minor, $patch] = $this->applyRollover($minor, $patch);
-        }
+        return $this->applyVersion(function (int $major, int $minor, int $patch) use ($changedFiles, $newFiles, $newModuleCount) {
+            if ($newModuleCount > 0) {
+                $minor += $newModuleCount;
+                $patch = 0;
+            } else {
+                $patch += count(array_unique(array_merge($changedFiles, $newFiles)));
+                [$minor, $patch] = $this->applyRollover($minor, $patch);
+            }
 
-        return $this->persist($information, "{$major}.{$minor}.{$patch}");
+            return "{$major}.{$minor}.{$patch}";
+        });
     }
 
     public function release(string $type): string
     {
-        $information = $this->loadInformation();
-        [$major, $minor, $patch] = $this->parseVersion($information->version);
-
-        switch ($type) {
-            case 'major':
-                $major += 1;
-                $minor = 0;
-                $patch = 0;
-                break;
-            case 'minor':
-                $minor += 1;
-                $patch = 0;
-                break;
-            case 'patch':
-                $patch += 1;
-                break;
-            default:
-                throw new \InvalidArgumentException("Unknown release type: {$type}");
+        if (!in_array($type, ['major', 'minor', 'patch'], true)) {
+            throw new \InvalidArgumentException("Unknown release type: {$type}");
         }
 
-        return $this->persist($information, "{$major}.{$minor}.{$patch}");
+        return $this->applyVersion(function (int $major, int $minor, int $patch) use ($type) {
+            switch ($type) {
+                case 'major':
+                    $major += 1;
+                    $minor = 0;
+                    $patch = 0;
+                    break;
+                case 'minor':
+                    $minor += 1;
+                    $patch = 0;
+                    break;
+                case 'patch':
+                    $patch += 1;
+                    break;
+            }
+
+            return "{$major}.{$minor}.{$patch}";
+        });
     }
 
     public function current(): string
@@ -68,9 +73,37 @@ class VersionBumper
         }
     }
 
+    /**
+     * Compute the next version inside a row-locked transaction so that
+     * concurrent bumps (e.g. overlapping git hooks) serialize instead of
+     * losing updates. History is recorded after commit — a missing
+     * version_histories table must not poison the transaction.
+     */
+    private function applyVersion(\Closure $compute): string
+    {
+        [$version, $changed] = DB::transaction(function () use ($compute) {
+            $information = $this->loadInformation();
+            $version = $compute(...$this->parseVersion($information->version));
+
+            if ($information->version === $version) {
+                return [$version, false];
+            }
+
+            $information->update(['version' => $version]);
+
+            return [$version, true];
+        });
+
+        if ($changed && config('project-version.history_enabled', true)) {
+            $this->recordHistory($version);
+        }
+
+        return $version;
+    }
+
     private function loadInformation(): Information
     {
-        return Information::firstOrCreate(['id' => 1], ['version' => '1.0.0']);
+        return Information::query()->lockForUpdate()->firstOrCreate(['id' => 1], ['version' => '1.0.0']);
     }
 
     private function parseVersion(?string $version): array
@@ -115,7 +148,10 @@ class VersionBumper
 
         return array_values(array_filter($files, function (string $file) use ($patterns) {
             foreach ($patterns as $pattern) {
-                if (fnmatch($pattern, $file, FNM_PATHNAME)) {
+                // No FNM_PATHNAME: '*' must cross directory separators so
+                // 'vendor/*' also matches 'vendor/a/b.php' and '*.md'
+                // matches 'docs/notes.md'.
+                if (fnmatch($pattern, $file)) {
                     return false;
                 }
             }
@@ -123,7 +159,7 @@ class VersionBumper
         }));
     }
 
-    private function countNewModules(array $newFiles): int
+    private function countNewModules(array $newFiles, ?string $fromRef): int
     {
         $patterns = (array) config('project-version.module_paths', ['app/*']);
         if (!$newFiles || !$patterns) {
@@ -145,7 +181,24 @@ class VersionBumper
             }
         }
 
-        return count($modules);
+        return count(array_filter(
+            array_keys($modules),
+            fn (string $module) => $this->moduleIsNew($module, $fromRef)
+        ));
+    }
+
+    /**
+     * A directory only counts as a new module when nothing existed under it
+     * before this change set — otherwise adding a file to an existing module
+     * (e.g. a new controller in app/Http) would wrongly bump minor.
+     */
+    private function moduleIsNew(string $module, ?string $fromRef): bool
+    {
+        $output = $fromRef !== null
+            ? $this->git->run(['ls-tree', '--name-only', $fromRef, '--', $module])
+            : $this->git->run(['ls-files', '--', $module . '/']);
+
+        return trim($output) === '';
     }
 
     private function applyRollover(int $minor, int $patch): array
@@ -157,21 +210,6 @@ class VersionBumper
         }
 
         return [$minor, $patch];
-    }
-
-    private function persist(Information $information, string $version): string
-    {
-        if ($information->version === $version) {
-            return $version;
-        }
-
-        $information->update(['version' => $version]);
-
-        if (config('project-version.history_enabled', true)) {
-            $this->recordHistory($version);
-        }
-
-        return $version;
     }
 
     private function recordHistory(string $version): void

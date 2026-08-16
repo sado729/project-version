@@ -12,22 +12,36 @@ final class GitPullCommand extends Command
     protected $signature = 'git:pull';
     protected $description = 'Perform git pull and run version update process';
 
-    public function handle(VersionBumper $bumper, Git $git): void
+    public function handle(VersionBumper $bumper, Git $git): int
     {
         $repo = (string) config('project-version.git_repository_name');
         $branch = (string) config('project-version.git_branch_name');
 
         $before = trim($git->run(['rev-parse', 'HEAD']));
-        $output = $git->run(['pull', $repo, $branch]);
+
+        try {
+            $output = $git->mustRun(['pull', $repo, $branch]);
+        } catch (\Throwable $e) {
+            $this->error('git pull failed: ' . trim($e->getMessage()));
+
+            return self::FAILURE;
+        }
+
         $after = trim($git->run(['rev-parse', 'HEAD']));
 
-        $version = $before !== '' && $before !== $after
-            ? $bumper->bump($before, $after)
-            : $bumper->bump();
+        if ($before !== '' && $after !== '' && $before !== $after) {
+            $version = $bumper->bump($before, $after);
+            $message = "Git pull operation completed successfully. New version: {$version}";
+        } else {
+            $version = $bumper->current();
+            $message = "Already up to date. Current version: {$version}";
+        }
 
         event(new GitPullEvent($version));
 
-        $this->info($output);
-        $this->info("Git pull operation completed successfully. New version: {$version}");
+        $this->info(trim($output));
+        $this->info($message);
+
+        return self::SUCCESS;
     }
 }

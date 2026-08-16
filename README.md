@@ -3,10 +3,12 @@
 Laravel paketi layihənizin versiyasını **avtomatik** olaraq git aktivliyinə əsasən artırır. Versiya `"major.minor.patch"` formatındadır:
 
 - **patch** — hər dəyişdirilən fayl üçün +1 (ignor edilməyənlər arasından)
-- **minor** — `module_paths` konfiqurasiyasındakı qovluqlara əlavə olunan hər yeni modul üçün +1, patch sıfırlanır
+- **minor** — `module_paths` konfiqurasiyasındakı qovluqlara əlavə olunan hər **yeni modul** üçün +1, patch sıfırlanır. Modul yalnız əvvəllər mövcud olmayan qovluq yaradılanda "yeni" sayılır — mövcud modula fayl əlavə etmək adi patch artımıdır.
 - **major** — `version:release major` komandası ilə artırılır
 
 Versiya `informations` cədvəlində saxlanılır, tarixçə isə `version_histories` cədvəlində.
+
+**Tələblər:** PHP 8.1+, Laravel 10 / 11 / 12.
 
 ---
 ## Quraşdırma
@@ -76,10 +78,11 @@ echo project_version(); // "1.2.7"
 
 | Açar | Təyinat |
 |---|---|
-| `ignore_patterns` | Versiyaya təsir etməyən fayllar (glob, `fnmatch` ilə müqayisə). Default: `*.md`, lock fayllar, `vendor/*`, `node_modules/*`, `storage/*`, `tests/*`, və s. |
-| `module_paths` | "Yeni modul" sayılan yollar. Default: `app/*`. |
+| `ignore_patterns` | Versiyaya təsir etməyən fayllar (glob, `fnmatch` ilə müqayisə; `*` qovluq ayırıcılarını da əhatə edir — `vendor/*` iç-içə faylları da tutur). Default: `*.md`, lock fayllar, `vendor/*`, `node_modules/*`, `storage/*`, `tests/*`, və s. |
+| `module_paths` | "Yeni modul" sayılan yollar. Default: `app/*`. Qovluq yalnız əvvəlki vəziyyətdə (git-də) mövcud deyildisə yeni modul sayılır. |
 | `patch_rollover_threshold` | Patch bu rəqəmə çatanda minor-a roll over edir. Default: `null` (söndürülmüş). Məs. `100` → `1.0.847` əvəzinə `1.8.47`. |
 | `history_enabled` | `version_histories` cədvəlinə hər bump-da yazsın? Default: `true`. |
+| `version_header` | `project-version` middleware-in yazdığı response header-in adı. Default: `X-App-Version`. `null` → söndürülür. |
 | `git_repository_name`, `git_branch_name` | `git:pull` komandası üçün. |
 
 ---
@@ -95,6 +98,8 @@ Event::listen(GitPullEvent::class, function (GitPullEvent $event) {
 
 ---
 ## Middleware
+
+`project-version` middleware-i cavaba cari versiyanı header kimi əlavə edir (default: `X-App-Version`):
 
 ```php
 Route::middleware('project-version')->group(fn () => /* ... */);
@@ -115,7 +120,7 @@ vendor/bin/phpunit
 
 ---
 ## License
-MIT — [License File](license.md)
+MIT — [LICENSE](LICENSE)
 
 ---
 ## More from me

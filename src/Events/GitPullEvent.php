@@ -3,16 +3,12 @@
 namespace Sado729\ProjectVersion\Events;
 
 use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Queue\SerializesModels;
 
 class GitPullEvent
 {
-    use Dispatchable, SerializesModels;
+    use Dispatchable;
 
-    public string $version;
-
-    public function __construct(string $version)
+    public function __construct(public string $version)
     {
-        $this->version = $version;
     }
 }
